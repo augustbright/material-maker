@@ -2,6 +2,7 @@ extends HBoxContainer
 
 
 const PANELS = [
+	{ name="Materials", scene=preload("res://material_maker/ironhomes/materials_panel.tscn"), position="TopLeft" },
 	{ name="Library", scene=preload("res://material_maker/panels/library/library.tscn"), position="TopLeft" },
 	{ name="Preview2D", scene=preload("res://material_maker/panels/preview_2d/preview_2d_panel.tscn"), position="TopRight" , parameters={preview_mode=1} },
 	{ name="Preview3D", scene=preload("res://material_maker/panels/preview_3d/preview_3d_panel.tscn"), position="BottomLeft" },
@@ -18,7 +19,7 @@ var default_material_layout := {
 	&"main": { &"type": "FlexTop", &"w": 1900.0, &"h": 939.0, &"children": [
 		{ &"type": "FlexSplit", &"w": 1900.0, &"h": 939.0, &"children": [
 			{ &"type": "FlexTab", &"w": 373.0, &"h": 939.0, &"children": [], &"tabs": [
-				&"Library", &"Hierarchy"], &"current": 0 },
+				&"Materials", &"Library", &"Hierarchy"], &"current": 0 },
 			{ &"type": "FlexMain", &"w": 1073.0, &"h": 939.0, &"children": [] },
 			{ &"type": "FlexSplit", &"w": 434.0, &"h": 939.0, &"children": [
 				{ &"type": "FlexTab", &"w": 434.0, &"h": 501.0, &"children": [], &"tabs": [
@@ -31,7 +32,7 @@ var default_paint_layout : Dictionary = { main={ children=[ { children=[ { child
 
 const HIDE_PANELS : Dictionary[String, Array] = {
 	"material": [ "Brushes", "Layers", "Parameters" ],
-	"paint": [ "Preview3D", "Histogram", "Hierarchy" ]
+	"paint": [ "Preview3D", "Histogram", "Hierarchy", "Materials" ]
 }
 
 
@@ -77,6 +78,9 @@ func load_panels() -> void:
 		elif mode == "paint":
 			layout[mode] = default_paint_layout
 	$FlexibleLayout.init(layout[current_mode] if layout.has(current_mode) else null)
+	# Iron Homes: a layout saved before the Materials panel existed would keep it hidden.
+	if current_mode == "material" and not is_panel_visible("Materials"):
+		set_panel_visible("Materials", true)
 
 	# Restore layout presets
 	var preset_keys : PackedStringArray

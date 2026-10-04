@@ -54,18 +54,12 @@ const MENU_MANAGE_PRESETS : int = 1003
 const THEMES = ["Default Dark", "Default Light", "Classic"]
 
 const MENU : Array[Dictionary] = [
-	{ menu="File/New material", command="new_material", shortcut="Control+N" },
-	{ menu="File/New paint project (Experimental)", command="new_paint_project", shortcut="Control+Shift+N", not_in_ports=["HTML5"] },
-	{ menu="File/Load", command="load_project", shortcut="Control+O" },
-	{ menu="File/Load material from website", command="load_material_from_website" },
-	{ menu="File/Load recent", submenu="load_recent", standalone_only=true, not_in_ports=["HTML5"] },
+	# Iron Homes: materials live in a Unity project's library and are opened from the Materials
+	# panel (material_maker/ironhomes); there is nothing to load or save anywhere else.
+	{ menu="File/Load project...", command="load_unity_project", shortcut="Control+O" },
 	{ menu="File/-" },
-	{ menu="File/Save", command="save_project", shortcut="Control+S" },
-	{ menu="File/Save as...", command="save_project_as", shortcut="Control+Shift+S" },
-	{ menu="File/Save all...", command="save_all_projects", not_in_ports=["HTML5"] },
-	{ menu="File/-" },
-	{ menu="File/Export again", command="export_again", shortcut="Control+E", not_in_ports=["HTML5"] },
-	{ menu="File/Export material", submenu="export_material", not_in_ports=["HTML5"] },
+	{ menu="File/Save material", command="save_material", shortcut="Control+S" },
+	{ menu="File/Bake material", command="bake_material", shortcut="Control+B" },
 	{ menu="File/-" },
 	{ menu="File/Close", command="close_project", shortcut="Control+Shift+Q" },
 	{ menu="File/Quit", command="quit", shortcut="Control+Q", not_in_ports=["HTML5"] },
@@ -244,9 +238,9 @@ func _ready() -> void:
 						for f in files:
 							DirAccess.remove_absolute(f)
 
-	if get_current_graph_edit() == null:
-		await get_tree().process_frame
-		new_material()
+	# Iron Homes: the last project opens by itself; no empty material is made.
+	await get_tree().process_frame
+	open_last_project()
 
 	size = get_window().size
 	position = Vector2.ZERO
@@ -870,11 +864,7 @@ func load_material_from_website() -> void:
 
 
 func save_project(project : Control = null) -> bool:
-	if project == null:
-		project = get_current_project()
-	if project != null:
-		return await project.save()
-	return false
+	return await save_material(project)   # Iron Homes: a save is always the library's
 
 func save_project_as(project : Control = null) -> bool:
 	if project == null:
@@ -899,11 +889,11 @@ func quit() -> void:
 		if result == "cancel":
 			quitting = false
 			return
-	if mm_globals.get_config("confirm_close_project"):
-		var result = await $VBoxContainer/Layout/FlexibleLayout/Main/Projects.check_save_tabs()
-		if !result:
-			quitting = false
-			return
+	# Iron Homes: unsaved changes are always asked about, whatever the preference says.
+	var saved = await $VBoxContainer/Layout/FlexibleLayout/Main/Projects.check_save_tabs()
+	if !saved:
+		quitting = false
+		return
 	await mm_renderer.stop_rendering_thread()
 	dim_window()
 	get_tree().quit()
@@ -1525,6 +1515,138 @@ func add_dialog(dialog : Window):
 		add_child(background)
 		dialog.tree_exited.connect(background.queue_free)
 	add_child(dialog)
+
+# Iron Homes: the project and its materials ---------------------------------------------------
+
+func get_materials_panel() -> Control:
+	return get_panel("Materials")
+
+## Asks for a Unity project folder and makes it the project, closing the materials of the last one.
+func load_unity_project() -> bool:
+	var dialog = preload("res://material_maker/windows/file_dialog/file_dialog.tscn").instantiate()
+	dialog.min_size = Vector2(500, 500)
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+	dialog.title = "Load project: a Unity project's folder"
+	dialog.current_dir = IHProject.project() if IHProject.project() != "" else mm_globals.get_home_directory()
+	var files = await dialog.select_files()
+	if files.is_empty():
+		return false
+	var path : String = files[0].trim_suffix("/")
+	if not IHProject.is_unity_project(path):
+		await accept_dialog("%s is not a Unity project: it has no Assets folder." % path, false, true)
+		return false
+	if not await close_all_materials():
+		return false
+	IHProject.set_project(path)
+	IHProject.ensure_library()
+	_project_changed()
+	return true
+
+## The project last worked in, or a question where it went.
+func open_last_project() -> void:
+	if IHProject.is_open():
+		IHProject.ensure_library()
+		_project_changed()
+		return
+	if IHProject.project() != "":
+		await accept_dialog("The last project is not there any more:\n%s\n\nChoose its folder." % IHProject.project(), false, true)
+	if not await load_unity_project():
+		_project_changed()
+
+func _project_changed() -> void:
+	var panel = get_materials_panel()
+	if panel:
+		panel.refresh()
+	var title : String = ProjectSettings.get_setting("application/config/name")+" v"+ProjectSettings.get_setting("application/config/actual_release")
+	if IHProject.is_open():
+		title += " — " + IHProject.project().get_file()
+	get_window().set_title(title)
+
+func _material_tab(path : String) -> int:
+	var projects = projects_panel.get_projects()
+	for i in projects.get_tab_count():
+		var tab = projects.get_child(i)
+		if tab is MMGraphEdit and tab.save_path == path:
+			return i
+	return -1
+
+## Opens a material of the library in a tab, or brings its tab forward if it is open already.
+func open_material(path : String) -> MMGraphEdit:
+	var projects = projects_panel.get_projects()
+	var open_at := _material_tab(path)
+	if open_at >= 0:
+		projects.current_tab = open_at
+		return projects.get_child(open_at)
+	var graph_edit : MMGraphEdit = new_graph_panel()
+	await graph_edit.load_file(path)
+	if current_mesh != null:
+		graph_edit.top_generator.set_current_mesh(current_mesh)
+	hierarchy.update_from_graph_edit(graph_edit)
+	graph_edit.update_tab_title()
+	return graph_edit
+
+## Closes a material's tab; with ask, unsaved changes are asked about first.
+func close_material(path : String, ask : bool = true) -> void:
+	var at := _material_tab(path)
+	if at < 0:
+		return
+	var projects = projects_panel.get_projects()
+	if ask:
+		await projects.close_tab(at)
+	else:
+		projects.get_child(at).remove_crash_recovery_file()
+		projects.do_close_tab(at)
+	update_menus()
+
+## Closes every tab, asking about unsaved ones first; false if that was cancelled.
+func close_all_materials() -> bool:
+	var projects = projects_panel.get_projects()
+	if not await projects.check_save_tabs():
+		return false
+	while projects.get_tab_count() > 0:
+		var tab = projects.get_child(0)
+		if tab.has_method("remove_crash_recovery_file"):
+			tab.remove_crash_recovery_file()
+		projects.do_close_tab(0)
+	update_menus()
+	return true
+
+func save_material_is_disabled() -> bool:
+	return not get_current_project() is MMGraphEdit
+
+func bake_material_is_disabled() -> bool:
+	return save_material_is_disabled()
+
+## Saves a material's graph to its .ptex in the library and bakes it beside it.
+func save_material(project : Control = null) -> bool:
+	if project == null:
+		project = get_current_project()
+	if not project is MMGraphEdit:
+		return false
+	if not IHProject.in_library(project.save_path):
+		await accept_dialog("Only a material of the project's library can be saved:\n%s" % IHProject.library(), false, true)
+		return false
+	if not await project.save_file(project.save_path):
+		return false
+	var baked : bool = await bake_material(project)
+	var panel = get_materials_panel()
+	if panel:
+		panel.refresh()
+	return baked
+
+## Bakes a material's textures and .json beside its .ptex: what Unity and Houdini read.
+func bake_material(project : Control = null) -> bool:
+	if project == null:
+		project = get_current_project()
+	if not project is MMGraphEdit or project.save_path == "":
+		return false
+	var material_node = project.get_material_node()
+	if material_node == null or not material_node.get_export_profiles().has(IHProject.TARGET):
+		await accept_dialog("This graph has no Material node to bake.", false, true)
+		return false
+	await material_node.export_material(project.save_path.get_basename(), IHProject.TARGET)
+	return true
 
 # Accept dialog
 

@@ -62,7 +62,8 @@ func check_save_tabs() -> bool:
 
 func check_save_tab(tab) -> bool:
 	var tab_control = get_child(tab)
-	if tab_control.need_save and mm_globals.get_config("confirm_close_project"):
+	# Iron Homes: unsaved changes are always asked about, whatever the preference says.
+	if tab_control.need_save:
 		var dialog = preload("res://material_maker/windows/accept_dialog/accept_dialog.tscn").instantiate()
 		var save_path = tab_control.save_path
 		if save_path == null:

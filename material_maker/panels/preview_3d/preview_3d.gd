@@ -96,6 +96,14 @@ func get_current_model_path() -> String:
 		return current_object.mesh.get_meta("file_path")
 	return ""
 
+## Iron Homes: a material is first seen on a square plane.
+func show_plane() -> void:
+	if not objects.has_node("Plane"):
+		return
+	for o in objects.get_children():
+		o.visible = false
+	select_object(objects.get_node("Plane").get_index())
+
 func select_object(id) -> void:
 	current_object.visible = false
 	current_object = objects.get_child(id)

@@ -31,6 +31,42 @@
 		"longdesc": "PBR material with maps generated as static images",
 		"code": "",
 		"exports": {
+			"Iron Homes": {
+				"export_extension": "json",
+				"files": [
+					{
+						"file_name": "$(path_prefix)_albedo.png",
+						"output": 0,
+						"type": "texture"
+					},
+					{
+						"file_name": "$(path_prefix)_mask.png",
+						"output": 11,
+						"type": "texture"
+					},
+					{
+						"file_name": "$(path_prefix)_normal.png",
+						"output": 7,
+						"type": "texture"
+					},
+					{
+						"file_name": "$(path_prefix).json",
+						"template": [
+							"{",
+							"    \"color\": [$(param:albedo_color.r), $(param:albedo_color.g), $(param:albedo_color.b)],",
+							"    \"metallic\": 1.0,",
+							"    \"smoothness\": 1.0,",
+							"    \"albedo\": \"$(file_prefix)_albedo.png\",",
+							"    \"mask\": \"$(file_prefix)_mask.png\",",
+							"    \"normal\": \"$(file_prefix)_normal.png\",",
+							"    \"normalStrength\": $(param:normal),",
+							"    \"metres\": $(param:tile_metres)",
+							"}"
+						],
+						"type": "template"
+					}
+				]
+			},
 			"Blender": {
 				"export_extension": "tres",
 				"files": [
@@ -3507,6 +3543,17 @@
 				"max": 10,
 				"min": 0,
 				"name": "normal",
+				"step": 0.01,
+				"type": "float"
+			},
+			{
+				"control": "None",
+				"default": 1,
+				"label": "Tile size (m)",
+				"longdesc": "Iron Homes: how many metres of surface one repeat of this material covers",
+				"max": 10,
+				"min": 0.01,
+				"name": "tile_metres",
 				"step": 0.01,
 				"type": "float"
 			},

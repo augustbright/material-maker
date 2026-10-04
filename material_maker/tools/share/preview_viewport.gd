@@ -3,8 +3,22 @@ extends SubViewport
 
 @onready var camera : Camera3D = $PreviewScene/Pivot/CameraAnchor/Camera3D
 
+## Iron Homes: a square plane, tilted back a little so relief and shine read — the preview
+## materials are mostly seen as (get_preview(PLANE)).
+const PLANE := 4
+var plane : MeshInstance3D
+
 
 func _ready():
+	plane = MeshInstance3D.new()
+	plane.name = "Plane"
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1.25, 1.25)
+	plane.mesh = quad
+	plane.transform = Transform3D(Basis(Vector3(1, 0, 0), deg_to_rad(-28)), Vector3(0, 0, 0))
+	plane.material_override = ShaderMaterial.new()
+	plane.visible = false
+	$PreviewScene/Pivot.add_child(plane)
 	await $PreviewScene/Pivot/Cylinder.update_mesh()
 	await $PreviewScene/Pivot/Cube.update_mesh()
 
@@ -13,6 +27,7 @@ func get_materials() -> Array:
 	materials.append($PreviewScene/Pivot/Sphere.get_surface_override_material(0))
 	materials.append($PreviewScene/Pivot/Cube.material)
 	materials.append($PreviewScene/Pivot/Cylinder.material)
+	materials.append(plane.material_override)
 	return materials
 
 func get_preview(index : int) -> ImageTexture:
@@ -20,6 +35,7 @@ func get_preview(index : int) -> ImageTexture:
 	camera.fov = 30
 	camera.near = 0.5
 	camera.far = 10
+	plane.visible = index == PLANE
 	match index:
 		0:
 			$PreviewScene/Pivot/Sphere.visible = true
@@ -67,6 +83,16 @@ func get_preview(index : int) -> ImageTexture:
 			camera.far = preview_settings.camera_far
 			var material : ShaderMaterial = $PreviewScene/Pivot/Cube.material
 			material.set_shader_parameter("uv1_scale", Vector3(3, 2, 1))
+			material.set_shader_parameter("uv1_offset", Vector3(0, 0, 0))
+			material.set_shader_parameter("depth_offset", 0.8)
+			material.set_shader_parameter("mesh_scale", 1.0)
+		PLANE:
+			$PreviewScene/Pivot/Sphere.visible = false
+			$PreviewScene/Pivot/Cylinder.visible = false
+			$PreviewScene/Pivot/Cube.visible = false
+			$PreviewScene/Pivot/Custom.visible = false
+			var material : ShaderMaterial = plane.material_override
+			material.set_shader_parameter("uv1_scale", Vector3(1, 1, 1))
 			material.set_shader_parameter("uv1_offset", Vector3(0, 0, 0))
 			material.set_shader_parameter("depth_offset", 0.8)
 			material.set_shader_parameter("mesh_scale", 1.0)

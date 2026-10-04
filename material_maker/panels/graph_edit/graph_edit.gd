@@ -595,6 +595,7 @@ func update_tab_title() -> void:
 		title = save_path.right(-(save_path.rfind("/")+1))
 		if generator:
 			generator.set_meta("file_path", title)
+		title = title.get_basename()   # Iron Homes: a tab is named by its material
 	if need_save:
 		title += " *"
 	if get_parent().has_method("set_tab_title"):
@@ -611,7 +612,7 @@ func set_save_path(path: String) -> void:
 		remove_crash_recovery_file()
 		need_save_crash_recovery = false
 		save_path = path
-		save_crash_recovery_path = save_path+".mmcr"
+		save_crash_recovery_path = recovery_path_for(save_path)
 		update_tab_title()
 		emit_signal("save_path_changed", self, path)
 
@@ -778,10 +779,16 @@ func find_buffers(g) -> int:
 		rv += find_buffers(c)
 	return rv
 
+## Iron Homes: a saved file's rescue copy lives in the user folder, not beside it — beside it,
+## in a Unity project's library, Unity would import it.
+static func recovery_path_for(path : String) -> String:
+	DirAccess.make_dir_recursive_absolute("user://recovery")
+	return "user://recovery/%s_%s.mmcr" % [ path.get_file().get_basename(), path.md5_text() ]
+
 func load_file(filename) -> bool:
 	var rescued = false
 	var new_generator = null
-	var recovery_path = filename+".mmcr"
+	var recovery_path = recovery_path_for(filename) if filename != null else ""
 	if filename != null and FileAccess.file_exists(recovery_path):
 		var dialog = preload("res://material_maker/windows/accept_dialog/accept_dialog.tscn").instantiate()
 		dialog.dialog_text = "Rescue file for "+filename.get_file()+" was found.\nLoad it?"
@@ -845,10 +852,17 @@ func generate_project_thumbnail() -> String:
 	else:
 		preview_vp = get_node("PreviewViewport")
 	await mm_globals.main_window.update_preview_3d([preview_vp])
-	var preview : ImageTexture = await preview_vp.get_preview(0)
+	# Iron Homes: a graph just opened is still rendering its preview textures; a thumbnail taken
+	# now comes out magenta. Wait for the queue, and a few frames for the shader.
+	while mm_deps.get_render_queue_size() > 0:
+		await mm_deps.render_queue_empty
+	for i in 4:
+		await get_tree().process_frame
+	# Iron Homes: the thumbnail the Materials panel shows, a plane, large enough to read there.
+	var preview : ImageTexture = await preview_vp.get_preview(preview_vp.PLANE)
 	var img : Image = preview.get_image()
 	@warning_ignore("integer_division")
-	img.resize(48, 48 * preview.get_height() / preview.get_width(), Image.INTERPOLATE_LANCZOS)
+	img.resize(128, 128 * preview.get_height() / preview.get_width(), Image.INTERPOLATE_LANCZOS)
 	return Marshalls.raw_to_base64(img.save_webp_to_buffer(true))
 
 func save() -> bool:

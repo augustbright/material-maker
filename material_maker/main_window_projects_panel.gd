@@ -62,7 +62,7 @@ func show_background_preview_3d(button_pressed):
 
 
 func _on_projects_no_more_tabs():
-	mm_globals.main_window.new_material()
+	# Iron Homes: no tabs is a state of its own; materials are opened from the Materials panel.
 	await get_tree().process_frame
 	_on_projects_panel_resized()
 

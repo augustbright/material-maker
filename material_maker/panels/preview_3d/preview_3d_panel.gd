@@ -8,6 +8,10 @@ var new_pivot_position : Vector3
 
 func _ready() -> void:
 	reattach_menu($MenuBar/HBox)
+	# The plane is built by a compute shader: not before the renderer has drawn a few frames.
+	for i in 10:
+		await get_tree().process_frame
+	show_plane()
 
 
 func on_right_click():
